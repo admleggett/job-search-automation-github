@@ -29,26 +29,26 @@ sequenceDiagram
 name: Daily Job Discovery
 on:
   schedule:
-    - cron: '0 9 * * 1-5'  # 9 AM weekdays (UTC)
-  workflow_dispatch:       # Manual trigger for testing
+    - cron: "0 9 * * 1-5" # 9 AM weekdays (UTC)
+  workflow_dispatch: # Manual trigger for testing
 
 jobs:
   discover-jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-          
+          python-version: "3.11"
+
       - name: Install job search library
         run: pip install job-search-automation
-        
+
       - name: Load user configuration
         run: |
           python scripts/load-user-config.py
@@ -56,7 +56,7 @@ jobs:
         env:
           USER_CONFIG: ${{ secrets.USER_CONFIG }}
           ADZUNA_API_KEY: ${{ secrets.ADZUNA_API_KEY }}
-          
+
       - name: Run job discovery
         id: discovery
         run: |
@@ -65,7 +65,7 @@ jobs:
           echo "$output" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         timeout-minutes: 5
-        
+
       - name: Create digest issue
         uses: ./.github/actions/create-digest-issue
         with:
@@ -76,6 +76,7 @@ jobs:
 ### 2. Custom GitHub Action (`create-digest-issue`)
 
 **File Structure:**
+
 ```
 .github/actions/create-digest-issue/
 ├── action.yml
@@ -90,47 +91,49 @@ jobs:
 ```
 
 **Action Definition (`action.yml`):**
+
 ```yaml
-name: 'Create Job Digest Issue'
-description: 'Creates a GitHub issue from job search digest data'
+name: "Create Job Digest Issue"
+description: "Creates a GitHub issue from job search digest data"
 inputs:
   digest-data:
-    description: 'JSON output from job search library'
+    description: "JSON output from job search library"
     required: true
   github-token:
-    description: 'GitHub token for API access'
+    description: "GitHub token for API access"
     required: true
 outputs:
   issue-number:
-    description: 'Number of created issue'
+    description: "Number of created issue"
   issue-url:
-    description: 'URL of created issue'
+    description: "URL of created issue"
 runs:
-  using: 'node20'
-  main: 'dist/index.js'
+  using: "node20"
+  main: "dist/index.js"
 ```
 
 **Main Action Logic (`src/index.ts`):**
+
 ```typescript
-import * as core from '@actions/core';
-import * as github from '@actions/github';
-import { DigestProcessor } from './digest-processor';
-import { IssueFormatter } from './issue-formatter';
+import * as core from "@actions/core";
+import * as github from "@actions/github";
+import { DigestProcessor } from "./digest-processor";
+import { IssueFormatter } from "./issue-formatter";
 
 export async function run(): Promise<void> {
   try {
     // Get inputs
-    const digestData = core.getInput('digest-data', { required: true });
-    const token = core.getInput('github-token', { required: true });
-    
+    const digestData = core.getInput("digest-data", { required: true });
+    const token = core.getInput("github-token", { required: true });
+
     // Parse and validate digest data
     const processor = new DigestProcessor();
     const digest = processor.parse(digestData);
-    
+
     // Format issue content
     const formatter = new IssueFormatter();
     const issueContent = formatter.format(digest);
-    
+
     // Create GitHub issue
     const octokit = github.getOctokit(token);
     const { data: issue } = await octokit.rest.issues.create({
@@ -138,17 +141,20 @@ export async function run(): Promise<void> {
       repo: github.context.repo.repo,
       title: issueContent.title,
       body: issueContent.body,
-      labels: ['job-digest', 'automated', `jobs-${digest.summary.total_jobs_found}`]
+      labels: [
+        "job-digest",
+        "automated",
+        `jobs-${digest.summary.total_jobs_found}`,
+      ],
     });
-    
+
     // Set outputs
-    core.setOutput('issue-number', issue.number.toString());
-    core.setOutput('issue-url', issue.html_url);
-    
+    core.setOutput("issue-number", issue.number.toString());
+    core.setOutput("issue-url", issue.html_url);
+
     core.info(`Created issue #${issue.number}: ${issue.html_url}`);
-    
   } catch (error) {
-    core.setFailed(error instanceof Error ? error.message : 'Unknown error');
+    core.setFailed(error instanceof Error ? error.message : "Unknown error");
   }
 }
 
@@ -191,20 +197,20 @@ export class DigestProcessor {
       throw new Error(`Invalid digest data: ${error.message}`);
     }
   }
-  
+
   private validate(data: any): void {
-    if (!data.summary || typeof data.summary.total_jobs_found !== 'number') {
-      throw new Error('Missing or invalid summary data');
+    if (!data.summary || typeof data.summary.total_jobs_found !== "number") {
+      throw new Error("Missing or invalid summary data");
     }
-    
+
     if (!Array.isArray(data.jobs)) {
-      throw new Error('Jobs data must be an array');
+      throw new Error("Jobs data must be an array");
     }
-    
+
     // Validate each job has required fields
     for (const job of data.jobs) {
       if (!job.title || !job.company || !job.url) {
-        throw new Error('Job missing required fields: title, company, url');
+        throw new Error("Job missing required fields: title, company, url");
       }
     }
   }
@@ -224,38 +230,38 @@ export class IssueFormatter {
     const jobCount = digest.summary.total_jobs_found;
     const title = this.formatTitle(jobCount);
     const body = this.formatBody(digest);
-    
+
     return { title, body };
   }
-  
+
   private formatTitle(jobCount: number): string {
     if (jobCount === 0) {
-      return '📭 No New Job Opportunities Today';
+      return "📭 No New Job Opportunities Today";
     } else if (jobCount === 1) {
-      return '🎯 1 New Job Opportunity';
+      return "🎯 1 New Job Opportunity";
     } else {
       return `🎯 ${jobCount} New Job Opportunities`;
     }
   }
-  
+
   private formatBody(digest: DigestResult): string {
     const { summary, jobs } = digest;
-    const timestamp = new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
+    const timestamp = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
-    
+
     let body = `# Job Search Results - ${timestamp}\n\n`;
     body += `**Summary:** ${summary.total_jobs_found} jobs found`;
-    
+
     if (summary.new_jobs > 0) {
       body += ` (${summary.new_jobs} new)`;
     }
-    
-    body += `\n**Sources:** ${summary.sources_queried.join(', ')}\n\n`;
-    
+
+    body += `\n**Sources:** ${summary.sources_queried.join(", ")}\n\n`;
+
     if (jobs.length === 0) {
       body += `## No Jobs Found\n\n`;
       body += `No jobs matched your current search criteria. Consider:\n`;
@@ -264,53 +270,59 @@ export class IssueFormatter {
       body += `- Adjusting salary expectations\n\n`;
       return body;
     }
-    
+
     body += `## Job Opportunities\n\n`;
-    
+
     // Sort jobs by match score (highest first)
-    const sortedJobs = jobs.sort((a, b) => (b.match_score || 0) - (a.match_score || 0));
-    
+    const sortedJobs = jobs.sort(
+      (a, b) => (b.match_score || 0) - (a.match_score || 0)
+    );
+
     for (const job of sortedJobs) {
       body += this.formatJobListing(job);
-      body += '\n---\n\n';
+      body += "\n---\n\n";
     }
-    
+
     body += `## Next Steps\n\n`;
     body += `Click "Apply Now" on any job above to start the application process.\n\n`;
     body += `*This digest was generated automatically by the Job Search Automation system.*`;
-    
+
     return body;
   }
-  
+
   private formatJobListing(job: JobListing): string {
     let listing = `### ${job.title} at ${job.company}\n\n`;
-    
+
     // Add job metadata
     const metadata = [];
     if (job.location) metadata.push(`📍 ${job.location}`);
     if (job.salary) metadata.push(`💰 ${job.salary}`);
-    if (job.match_score) metadata.push(`🎯 ${Math.round(job.match_score * 100)}% match`);
-    
+    if (job.match_score)
+      metadata.push(`🎯 ${Math.round(job.match_score * 100)}% match`);
+
     if (metadata.length > 0) {
-      listing += `${metadata.join(' • ')}\n\n`;
+      listing += `${metadata.join(" • ")}\n\n`;
     }
-    
+
     // Add description (truncated)
-    const description = job.description.length > 300 
-      ? job.description.substring(0, 300) + '...'
-      : job.description;
+    const description =
+      job.description.length > 300
+        ? job.description.substring(0, 300) + "..."
+        : job.description;
     listing += `${description}\n\n`;
-    
+
     // Add match reasons if available
     if (job.match_reasons && job.match_reasons.length > 0) {
-      listing += `**Why this matches:** ${job.match_reasons.join(', ')}\n\n`;
+      listing += `**Why this matches:** ${job.match_reasons.join(", ")}\n\n`;
     }
-    
+
     // Add action buttons
     listing += `[**Apply Now**](${job.url}) | `;
     listing += `[View Original](${job.url}) | `;
-    listing += `[Research Company](https://www.google.com/search?q=${encodeURIComponent(job.company + ' company review')})\n\n`;
-    
+    listing += `[Research Company](https://www.google.com/search?q=${encodeURIComponent(
+      job.company + " company review"
+    )})\n\n`;
+
     return listing;
   }
 }
@@ -319,16 +331,17 @@ export class IssueFormatter {
 ### 5. Configuration Management
 
 **User Configuration Schema (`config/settings.example.yaml`):**
+
 ```yaml
 # Job Search Automation - User Configuration
 
 user_profile:
   name: "John Doe"
   email: "john@example.com"
-  timezone: "America/New_York"  # Used for scheduling
-  
+  timezone: "America/New_York" # Used for scheduling
+
 search_criteria:
-  keywords: 
+  keywords:
     - "software engineer"
     - "python developer"
     - "full stack developer"
@@ -343,7 +356,7 @@ search_criteria:
   job_types:
     - "full-time"
     - "contract"
-  
+
 filters:
   exclude_companies:
     - "Company A"
@@ -353,26 +366,27 @@ filters:
     - "remote work"
   max_jobs_per_digest: 10
   min_match_score: 0.6
-  
+
 sources:
   adzuna:
     enabled: true
-    api_key_secret: "ADZUNA_API_KEY"  # Reference to GitHub secret
+    api_key_secret: "ADZUNA_API_KEY" # Reference to GitHub secret
   stackoverflow:
     enabled: true
-    rate_limit: 10  # requests per minute
-    
+    rate_limit: 10 # requests per minute
+
 notifications:
   github_issues: true
-  email_digest: false  # Using GitHub notifications instead
+  email_digest: false # Using GitHub notifications instead
   timing:
-    schedule: "0 9 * * 1-5"  # 9 AM weekdays
+    schedule: "0 9 * * 1-5" # 9 AM weekdays
     timezone: "America/New_York"
 ```
 
 ## Error Handling & Monitoring
 
 ### Workflow Error Scenarios
+
 1. **Library installation fails**: Retry with cached dependencies
 2. **Job discovery times out**: Continue with partial results
 3. **No jobs found**: Create issue with suggestions
@@ -380,6 +394,7 @@ notifications:
 5. **Issue creation fails**: Log error, send notification
 
 ### Monitoring & Alerting
+
 - **Workflow success/failure metrics**: Track via GitHub Actions
 - **Job discovery performance**: Log execution time and job counts
 - **Issue creation success rate**: Monitor API response codes
@@ -388,18 +403,21 @@ notifications:
 ## Testing Strategy
 
 ### Unit Tests
+
 - Digest processor validation
 - Issue formatter output
 - Configuration loading
 - Error handling scenarios
 
 ### Integration Tests
+
 - Complete workflow execution
 - GitHub API interactions
 - Library integration
 - Timing and performance
 
 ### User Acceptance Tests
+
 - Email notification delivery
 - Issue readability and formatting
 - Mobile experience
